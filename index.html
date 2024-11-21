@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Synchronized Video Stream</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden; /* Prevents vertical scrolling on reload */
+        }
+
+        #videoWrapper {
+            position: relative;
+            width: 80%;
+            max-width: 800px;
+            aspect-ratio: 16 / 9; /* Maintains a fixed ratio for the video */
+            overflow: hidden; /* Ensures no content spills out */
+            background-color: #000; /* Placeholder to avoid white flash */
+        }
+
+        #video {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        #leaderMessage {
+            margin-top: 5px;
+            font-weight: bold;
+            color: green;
+            display: none;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        input[type="range"] {
+            width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div id="videoWrapper">
+        <video id="video" autoplay muted playsinline preload="auto"></video>
+    </div>
+    <div id="controls">
+        <button id="fullscreenBtn">Fullscreen</button>
+        <button id="audioToggleBtn">Toggle Audio</button>
+        <input id="volumeSlider" type="range" min="0" max="1" step="0.1" value="1" />
+        <label for="volumeSlider">Volume</label>
+        <p id="leaderMessage">You are the leader.</p>
+    </div>
+
+    <script>
+        const socket = new WebSocket("ws://192.168.137.11");
+        const video = document.getElementById("video");
+        const fullscreenBtn = document.getElementById("fullscreenBtn");
+        const audioToggleBtn = document.getElementById("audioToggleBtn");
+        const volumeSlider = document.getElementById("volumeSlider");
+        const leaderMessage = document.getElementById("leaderMessage");
+
+        let initialized = false;
+        const DRIFT_THRESHOLD = 0.5; // Drift threshold in seconds
+
+        socket.onopen = () => console.log("WebSocket connection opened.");
+        socket.onerror = (error) => console.error("WebSocket error:", error);
+
+        socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            if (data.isServerLeader) {
+                leaderMessage.style.display = "block";
+            }
+
+            if (data.command === "sync") {
+                // Set video URL and initialize playback
+                if (!initialized) {
+                    video.src = data.videoUrl;
+                    video.currentTime = data.leaderTime;
+                    initialized = true;
+                    video.play().catch((err) => console.error("Playback error:", err));
+                }
+
+                const clientReceiveTime = Date.now();
+                const delay = (clientReceiveTime - data.serverTimestamp) / 1000000000;
+                const correctedTime = data.leaderTime + delay;
+
+                const drift = Math.abs(video.currentTime - correctedTime);
+
+                if (drift > DRIFT_THRESHOLD) {
+                    video.currentTime = correctedTime;
+                    console.log("Drift corrected:", drift, "seconds");
+                }
+
+                if (data.isPlaying && video.paused) video.play();
+                if (!data.isPlaying && !video.paused) video.pause();
+            }
+        };
+
+        fullscreenBtn.onclick = () => {
+            if (video.requestFullscreen) video.requestFullscreen();
+        };
+
+        audioToggleBtn.onclick = () => {
+            video.muted = !video.muted;
+            audioToggleBtn.textContent = video.muted ? "Enable Audio" : "Mute Audio";
+        };
+
+        volumeSlider.oninput = () => {
+            video.volume = volumeSlider.value;
+        };
+    </script>
+</body>
+</html>
