@@ -106,6 +106,6 @@ We welcome contributions!
 ---
 
 ### Support  
-If you encounter any issues or have questions, please open an [issue](https://github.com/yourusername/syncstream/issues).  
+If you encounter any issues or have questions, please open an [issue](https://github.com/JaiSamyukth/SyncStream/issues).  
 
 Happy Streaming with **SyncStream**! 🎥✨
